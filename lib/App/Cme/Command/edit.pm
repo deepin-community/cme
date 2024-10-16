@@ -1,7 +1,7 @@
 #
 # This file is part of App-Cme
 #
-# This software is Copyright (c) 2014-2021 by Dominique Dumont.
+# This software is Copyright (c) 2014-2022 by Dominique Dumont <ddumont@cpan.org>.
 #
 # This is free software, licensed under:
 #
@@ -10,7 +10,7 @@
 # ABSTRACT: Edit the configuration of an application
 
 package App::Cme::Command::edit ;
-$App::Cme::Command::edit::VERSION = '1.034';
+$App::Cme::Command::edit::VERSION = '1.040';
 use strict;
 use warnings;
 use 5.10.1;
@@ -124,7 +124,7 @@ App::Cme::Command::edit - Edit the configuration of an application
 
 =head1 VERSION
 
-version 1.034
+version 1.040
 
 =head1 SYNOPSIS
 
@@ -177,7 +177,8 @@ See L<cme/"Global Options">.
 
 =item -open-item
 
-Open a specific item of the configuration when opening the editor
+Open a specific item of the configuration when opening the editor. Trying to open
+a non-existing item triggers an error.
 
 =back
 
@@ -191,7 +192,7 @@ Dominique Dumont
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is Copyright (c) 2014-2021 by Dominique Dumont.
+This software is Copyright (c) 2014-2022 by Dominique Dumont <ddumont@cpan.org>.
 
 This is free software, licensed under:
 

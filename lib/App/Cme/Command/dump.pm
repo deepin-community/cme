@@ -1,7 +1,7 @@
 #
 # This file is part of App-Cme
 #
-# This software is Copyright (c) 2014-2021 by Dominique Dumont.
+# This software is Copyright (c) 2014-2022 by Dominique Dumont <ddumont@cpan.org>.
 #
 # This is free software, licensed under:
 #
@@ -10,7 +10,7 @@
 # ABSTRACT: Dump the configuration of an application
 
 package App::Cme::Command::dump ;
-$App::Cme::Command::dump::VERSION = '1.034';
+$App::Cme::Command::dump::VERSION = '1.040';
 use strict;
 use warnings;
 use 5.10.1;
@@ -20,7 +20,7 @@ use App::Cme -command ;
 use base qw/App::Cme::Common/;
 
 use Config::Model::ObjTreeScanner;
-use YAML;
+use YAML::PP qw/Dump/;
 use JSON;
 use Data::Dumper;
 
@@ -106,7 +106,7 @@ App::Cme::Command::dump - Dump the configuration of an application
 
 =head1 VERSION
 
-version 1.034
+version 1.040
 
 =head1 SYNOPSIS
 
@@ -150,7 +150,7 @@ Dominique Dumont
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is Copyright (c) 2014-2021 by Dominique Dumont.
+This software is Copyright (c) 2014-2022 by Dominique Dumont <ddumont@cpan.org>.
 
 This is free software, licensed under:
 

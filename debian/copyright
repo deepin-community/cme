@@ -4,11 +4,11 @@ Upstream-Contact: Dominique Dumont
 Source: https://metacpan.org/release/App-Cme
 
 Files: *
-Copyright: 2014-2020, Dominique Dumont <ddumont@cpan.org>
+Copyright: 2014-2022, Dominique Dumont <ddumont@cpan.org>
 License: LGPL-2.1
 
 Files: debian/*
-Copyright: 2014-2020, Dominique Dumont <dod@debian.org>
+Copyright: 2014-2022, Dominique Dumont <dod@debian.org>
 License: LGPL-2.1
 
 License: LGPL-2.1
