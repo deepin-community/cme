@@ -1,3 +1,77 @@
+cme (1.041-1) unstable; urgency=medium
+
+  [ Dominique Dumont ]
+  * new upstream version
+  * dropped pristine-tar
+  * package is now build from upstream repo with dist-zilla
+  * dh_cme_upgrade: fix non-utf8 char in pod
+
+ -- Dominique Dumont <dod@debian.org>  Sun, 01 Dec 2024 17:39:22 +0100
+
+cme (1.040-1) unstable; urgency=medium
+
+  * Team upload.
+  * Import upstream version 1.040.
+
+ -- gregor herrmann <gregoa@debian.org>  Sun, 21 Jan 2024 18:05:48 +0100
+
+cme (1.039-1) unstable; urgency=medium
+
+  * Team upload.
+  * Import upstream version 1.039.
+
+ -- gregor herrmann <gregoa@debian.org>  Fri, 15 Dec 2023 22:36:23 +0100
+
+cme (1.038-2) unstable; urgency=medium
+
+  * Team upload.
+  * debian/clean: remove data generated during tests. (Closes: #1043655)
+  * Declare compliance with Debian Policy 4.6.2.
+  * Annotate test-only build dependencies with <!nocheck>.
+
+ -- gregor herrmann <gregoa@debian.org>  Sun, 13 Aug 2023 16:02:22 +0200
+
+cme (1.038-1) unstable; urgency=medium
+
+  * New upstream version 1.038
+    * run command: fix substitution of variable in commit message
+
+ -- Dominique Dumont <dod@debian.org>  Sun, 13 Mar 2022 19:08:22 +0100
+
+cme (1.037-1) unstable; urgency=medium
+
+  * New upstream version 1.037
+    * allow code section in scripts
+    * allow 'run' script in YAML or Perl format
+  * control: replace libyaml-perl dep with libyaml-pp-perl
+  * remove obsolete fix-test patch
+
+ -- Dominique Dumont <dod@debian.org>  Sat, 05 Feb 2022 18:09:31 +0100
+
+cme (1.036-2) unstable; urgency=medium
+
+  * add patch to fix test
+
+ -- Dominique Dumont <dod@debian.org>  Wed, 12 Jan 2022 19:05:47 +0100
+
+cme (1.036-1) unstable; urgency=medium
+
+  * New upstream version 1.036
+    * Fix tests broken by Config::Model 2.148
+  * control: build dep on libconfig-model-perl (>= 2.148)
+
+ -- Dominique Dumont <dod@debian.org>  Wed, 12 Jan 2022 17:46:00 +0100
+
+cme (1.035-1) unstable; urgency=medium
+
+  * New upstream version 1.035
+    * fix run script:
+      * --no-commit option is now working
+      * do not try to commit when no changes are done
+  * updated copyright year of Dominique Dumont
+
+ -- Dominique Dumont <dod@debian.org>  Tue, 11 Jan 2022 12:25:08 +0100
+
 cme (1.034-1) unstable; urgency=medium
 
   * New upstream version 1.034

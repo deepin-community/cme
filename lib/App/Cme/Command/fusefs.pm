@@ -1,16 +1,7 @@
-#
-# This file is part of App-Cme
-#
-# This software is Copyright (c) 2014-2021 by Dominique Dumont.
-#
-# This is free software, licensed under:
-#
-#   The GNU Lesser General Public License, Version 2.1, February 1999
-#
 # ABSTRACT: Edit the configuration of an application with fuse
 
 package App::Cme::Command::fusefs ;
-$App::Cme::Command::fusefs::VERSION = '1.034';
+
 use strict;
 use warnings;
 use 5.10.1;
@@ -100,19 +91,8 @@ sub execute {
 
 __END__
 
-=pod
-
-=encoding UTF-8
-
-=head1 NAME
-
-App::Cme::Command::fusefs - Edit the configuration of an application with fuse
-
-=head1 VERSION
-
-version 1.034
-
 =head1 SYNOPSIS
+
 
 =head1 DESCRIPTION
 
@@ -147,17 +127,5 @@ substitution string to replace '/' in the fused dir. Default is C<< <slash> >>.
 =head1 SEE ALSO
 
 L<cme>
-
-=head1 AUTHOR
-
-Dominique Dumont
-
-=head1 COPYRIGHT AND LICENSE
-
-This software is Copyright (c) 2014-2021 by Dominique Dumont.
-
-This is free software, licensed under:
-
-  The GNU Lesser General Public License, Version 2.1, February 1999
 
 =cut

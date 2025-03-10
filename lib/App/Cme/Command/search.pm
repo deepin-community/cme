@@ -1,16 +1,7 @@
-#
-# This file is part of App-Cme
-#
-# This software is Copyright (c) 2014-2021 by Dominique Dumont.
-#
-# This is free software, licensed under:
-#
-#   The GNU Lesser General Public License, Version 2.1, February 1999
-#
 # ABSTRACT: Search the configuration of an application
 
 package App::Cme::Command::search ;
-$App::Cme::Command::search::VERSION = '1.034';
+
 use strict;
 use warnings;
 use 5.10.1;
@@ -77,19 +68,8 @@ sub execute {
 
 __END__
 
-=pod
-
-=encoding UTF-8
-
-=head1 NAME
-
-App::Cme::Command::search - Search the configuration of an application
-
-=head1 VERSION
-
-version 1.034
-
 =head1 SYNOPSIS
+
 
 =head1 DESCRIPTION
 
@@ -146,17 +126,5 @@ See L<cme/"Global Options">.
 =head1 SEE ALSO
 
 L<cme>
-
-=head1 AUTHOR
-
-Dominique Dumont
-
-=head1 COPYRIGHT AND LICENSE
-
-This software is Copyright (c) 2014-2021 by Dominique Dumont.
-
-This is free software, licensed under:
-
-  The GNU Lesser General Public License, Version 2.1, February 1999
 
 =cut

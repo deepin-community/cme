@@ -1,3 +1,60 @@
+{{$NEXT}}
+
+1.041 2024-11-23
+
+  New feature:
+    * run: allow to use a value from config tree in commit message
+
+  Bug fix:
+    * run: fix ignored commit data in YAML script
+    * run: fix crash with YAML script without default value
+
+  Doc:
+    * run: update doc on YAML scripts
+
+1.040 2024-01-17
+
+  Bug fix:
+    * fix deprecation warning
+
+1.039 2023-12-09
+
+  New feature:
+    * tkui: open write widget with "cme edit <app> --open-item "<element path>"
+
+  Bug fix:
+    * cme run: improve heuristic to detect plain Perl script
+
+1.038 2022-03-13
+
+  Bug fix:
+    * run command: substitution of variable in commit message
+
+1.037 2022-02-05
+
+  New feature:
+    * allow code section in scripts
+    * allow 'run' script in YAML or Perl format
+
+  Misc changes:
+    * remove "use XXX" from test script
+
+1.036 2022-01-12
+
+  Bug fix:
+    * fix test broken by output change in Config::Model 2.148
+
+  Misc changes:
+    * tests requires Config::Model 2.148
+
+1.035 2022-01-09
+
+  Bug fix:
+    * fix postderef syntax with perl 5.20
+    * fix (run): --no-commit option
+    * fix (run): do not try to commit when no changes are done
+    * fix (test): broken by Config::Model 2.145
+
 1.034 2021-10-30
 
   New feature:

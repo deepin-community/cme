@@ -1,16 +1,7 @@
-#
-# This file is part of App-Cme
-#
-# This software is Copyright (c) 2014-2021 by Dominique Dumont.
-#
-# This is free software, licensed under:
-#
-#   The GNU Lesser General Public License, Version 2.1, February 1999
-#
 #ABSTRACT: Common methods for App::Cme
 
 package App::Cme::Common;
-$App::Cme::Common::VERSION = '1.034';
+
 use strict;
 use warnings;
 use 5.10.1;
@@ -24,9 +15,6 @@ use Path::Tiny;
 use Encode qw(decode_utf8);
 
 my @store;
-
-## no critic (Variables::ProhibitPackageVars)
-$::_use_log4perl_to_warn = 1;
 
 sub cme_global_options {
   my ( $class, $app ) = @_;
@@ -217,8 +205,14 @@ sub run_tk_ui {
     $instance->on_message_cb(sub{$cmu->show_message(@_);});
 
     if ($opt->{open_item}) {
-        my $obj = $instance->grab($opt->{open_item});
-        $cmu->force_element_display($obj);
+        my $obj = $instance->grab(step => $opt->{open_item}, autoadd => 0);
+        # using afterIdle avoids geometry problem where the right side
+        # of the widget is not visible
+        $mw->afterIdle( sub {
+            $cmu->force_element_display($obj);
+            my $path = $cmu->{tktree}->selectionGet;
+            $cmu->create_element_widget('edit', $path);
+        })
     }
 
     &MainLoop;    # Tk's
@@ -262,18 +256,6 @@ sub get_documentation {
 
 __END__
 
-=pod
-
-=encoding UTF-8
-
-=head1 NAME
-
-App::Cme::Common - Common methods for App::Cme
-
-=head1 VERSION
-
-version 1.034
-
 =head1 SYNOPSIS
 
  # Internal. Used by App::Cme::Command::*
@@ -282,16 +264,5 @@ version 1.034
 
 Common methods for all cme commands
 
-=head1 AUTHOR
-
-Dominique Dumont
-
-=head1 COPYRIGHT AND LICENSE
-
-This software is Copyright (c) 2014-2021 by Dominique Dumont.
-
-This is free software, licensed under:
-
-  The GNU Lesser General Public License, Version 2.1, February 1999
 
 =cut

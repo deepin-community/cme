@@ -1,16 +1,7 @@
-#
-# This file is part of App-Cme
-#
-# This software is Copyright (c) 2014-2021 by Dominique Dumont.
-#
-# This is free software, licensed under:
-#
-#   The GNU Lesser General Public License, Version 2.1, February 1999
-#
 # ABSTRACT: Modify the configuration of an application
 
 package App::Cme::Command::modify ;
-$App::Cme::Command::modify::VERSION = '1.034';
+
 use strict;
 use warnings;
 use 5.10.1;
@@ -73,18 +64,6 @@ sub execute {
 
 __END__
 
-=pod
-
-=encoding UTF-8
-
-=head1 NAME
-
-App::Cme::Command::modify - Modify the configuration of an application
-
-=head1 VERSION
-
-version 1.034
-
 =head1 SYNOPSIS
 
   # modify configuration with command line
@@ -136,6 +115,7 @@ See L<cme/"Global Options">.
 
 =item -savek
 
+
 Force a save even if no change was done. Useful to reformat the configuration file.
 
 =item -verbose
@@ -147,17 +127,5 @@ Show effect of the modify instructions.
 =head1 SEE ALSO
 
 L<cme>
-
-=head1 AUTHOR
-
-Dominique Dumont
-
-=head1 COPYRIGHT AND LICENSE
-
-This software is Copyright (c) 2014-2021 by Dominique Dumont.
-
-This is free software, licensed under:
-
-  The GNU Lesser General Public License, Version 2.1, February 1999
 
 =cut
