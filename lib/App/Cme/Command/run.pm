@@ -1,31 +1,23 @@
-#
-# This file is part of App-Cme
-#
-# This software is Copyright (c) 2014-2021 by Dominique Dumont.
-#
-# This is free software, licensed under:
-#
-#   The GNU Lesser General Public License, Version 2.1, February 1999
-#
 # ABSTRACT: Run a cme script
 
 package App::Cme::Command::run ;
-$App::Cme::Command::run::VERSION = '1.034';
+
 use strict;
 use warnings;
 use v5.20;
 use File::HomeDir;
 use Path::Tiny;
 use Config::Model;
+use Config::Model::Lister;
 use Log::Log4perl qw(get_logger :levels);
+use YAML::PP;
 
 use Encode qw(decode_utf8);
 
 use App::Cme -command ;
 
 use base qw/App::Cme::Common/;
-use experimental qw/signatures/;
-no warnings qw(experimental::smartmatch experimental::signatures);
+use feature qw/postderef signatures/;
 
 my $__test_home = '';
 # used only by tests
@@ -44,8 +36,10 @@ push @script_paths, path($INC{"Config/Model.pm"})->parent->child("Model/scripts"
 sub opt_spec {
     my ( $class, $app ) = @_;
     return ( 
-        [ "arg=s@"  => "script argument. run 'cme run $app -doc' for possible arguments" ],
+        [ "arg=s@"  => "script argument. run 'cme run <script> -doc' for possible arguments" ],
         [ "backup:s"  => "Create a backup of configuration files before saving." ],
+        [ "foreach=s" => "Run script in several directories. The list of directories "
+          . "must be passed as a single argument, i.e. --foreach 'foo bar'" ],
         [ "commit|c:s" => "commit change with passed message" ],
         [ "cat" => "Show the script file" ],
         [ "no-commit|nc!" => "skip commit to git" ],
@@ -78,10 +72,15 @@ sub check_script_arguments ($self, $opt, $script_name) {
         my @scripts;
         foreach my $path ( @script_paths ) {
             next unless $path->is_dir;
-            push @scripts, grep { ! /~$/ } $path->children();
+            push @scripts, map {$_->basename} grep { ! /~$/ } $path->children();
         }
         say $opt->{list} ? "Available scripts:" : "Missing script argument. Choose one of:";
-        say map {"- ".$_->basename."\n"} @scripts ;
+        foreach my $script_path (sort @scripts) {
+            my $data = $self->get_script_data($script_path);
+            printf("- %s (app: %s)\n",$script_path, $data->{app} );
+        }
+        say "";
+        say "Run 'cme run <script> -doc' to get more details on a script.";
         return 0;
     }
     return 1;
@@ -106,50 +105,60 @@ sub find_script_file ($self, $script_name) {
     return $script;
 }
 
+## no critic (Subroutines::ProhibitManyArgs)
+sub replace_var_in_value ($user_args, $script_var, $data, $value) {
+    state $var_pattern = qr~(?<!\\) \$([a-zA-Z]\w+) (?!\s*{)~x;
+
+    # change $var but not \$var, not $var{} and not $1
+    $value =~ s~ $var_pattern
+               ~ $user_args->{$1} // $script_var->{$1} // $ENV{$1} // $data->{default}{$1} // '$'.$1 ~xeg;
+
+    # register vars without replacements
+    foreach my $var ($value =~ m~ $var_pattern ~xg) {
+        $data->{missing}{$var} = 1 ;
+    }
+
+    # now change \$var in $var
+    $value =~ s!\\\$!\$!g;
+
+    return $value;
+}
+
 # replace variables with command arguments or eval'ed variables or env variables
 ## no critic (Subroutines::ProhibitManyArgs)
-sub replace_var_in_value ($user_args, $script_var, $default, $missing, $vars) {
-    my $var_pattern = qr~(?<!\\) \$([a-zA-Z]\w+) (?!\s*{)~x;
-
-    foreach ($vars->@*) {
-        # change $var but not \$var, not $var{} and not $1
-        s~ $var_pattern
-         ~ $user_args->{$1} // $script_var->{$1} // $ENV{$1} // $default->{$1} // '$'.$1 ~xeg;
-
-        # register vars without replacements
-        foreach my $var (m~ $var_pattern ~xg) {
-            $missing->{$var} = 1 ;
+sub replace_vars ($user_args, $script_var, $data, @items) {
+    foreach my $item (@items) {
+        if (ref $data->{$item}  eq 'ARRAY') {
+            my @new;
+            foreach my $value ($data->{$item}->@*) {
+                push @new, replace_var_in_value ($user_args, $script_var, $data, $value);
+            }
+            $data->{$item} = \@new;
         }
-
-        # now change \$var in $var
-        s!\\\$!\$!g;
+        elsif ($data->{$item}) {
+            $data->{$item} = replace_var_in_value ($user_args, $script_var, $data, $data->{$item});
+        }
     }
     return;
 }
 
-sub parse_script ($script, $content, $user_args, $app_args) {
-    my %var;
+sub parse_script_lines ($script, $lines) {
+    my $parsed_data = {
+        app => '',
+        doc => [],
+        code => [],
+        commit_msg => '',
+        # provide default values
+        default => {},
+        load => [],
+        var => [],
+    };
 
-    # find if all variables are accounted for
-    my %missing ;
-
-    # provide default values
-    my %default ;
-
-    # %args can be used in var section of a script. A new entry in
-    # added in %missing if the script tries to read an undefined value
-    tie my %args, 'App::Cme::Run::Var', \%missing, \%default;
-    %args = $user_args->%*;
-
-    my @lines =  split /\n/,$content;
-    my @load;
-    my @doc;
-    my $commit_msg ;
     my $line_nb = 0;
 
     # check content, store app
-    while (@lines) {
-        my $line = shift @lines;
+    while ($lines->@*) {
+        my $line = shift $lines->@*;
         $line_nb++;
         $line =~ s/#.*//; # remove comments
         $line =~ s/^\s+//;
@@ -158,9 +167,9 @@ sub parse_script ($script, $content, $user_args, $app_args) {
 
         if ($line =~ /^---\s*(\w+)$/) {
             $key = $1;
-            while ($lines[0] !~ /^---/) {
-                $lines[0] =~ s/#.*//; # remove comments
-                push @value,  shift @lines;
+            while ($lines->[0] !~ /^---/) {
+                $lines->[0] =~ s/#.*//; # remove comments
+                push @value,  shift $lines->@*;
             }
         }
         elsif ($line eq '---') {
@@ -172,42 +181,166 @@ sub parse_script ($script, $content, $user_args, $app_args) {
 
         next unless $key ; # empty line
 
-        replace_var_in_value($user_args, \%var, \%default, \%missing, \@value) unless $key eq 'var';
+        parse_command($key, $parsed_data, $line_nb, \@value)
+            or die "Error in cme DSL file $script line $line_nb: unexpected '$key' instruction\n";
+    }
 
-        for ($key) {
-            when (/^app/) {
-                unshift @$app_args, @value;
-            }
-            when ('var') {
-                # value comes from system file, not from user data
-                my $res = eval ("@value") ; ## no critic (ProhibitStringyEval)
-                die "Error in var specification line $line_nb: $@\n" if $@;
-            }
-            when ('default') {
-                # multi-line default value is not supported
-                my ($dk, $dv) = split /[\s:=]+/, $value[0], 2;
-                $default{$dk} = $dv;
-            }
-            when ('doc') {
-                push @doc, @value;
-            }
-            when ('load') {
-                push @load, @value;
-            }
-            when ('commit') {
-                $commit_msg = join "\n",@value;
-            }
-            default {
-                die "Error in file $script line $line_nb: unexpected '$key' instruction\n";
-            }
+    return $parsed_data;
+}
+
+sub parse_command ($key, $parsed_data, $line_nb, $value) {
+    ## no critic (ControlStructures::ProhibitCascadingIfElse)
+    if ( $key =~ /^app/ ) {
+        $parsed_data->{app} = $value->[0];
+    }
+    elsif ( $key eq 'var' ) {
+        push $parsed_data->{var}->@*, [ $line_nb, $value->@* ];
+    }
+    elsif ( $key eq 'default' ) {
+        # multi-line default value is not supported
+        my ( $dk, $dv ) = split /[\s:=]+/, $value->[0], 2;
+        $parsed_data->{default}{$dk} = $dv;
+    }
+    elsif ( $key eq 'code' ) {
+        die "Error line $line_nb: Cannot mix code and load section\n" if $parsed_data->{load}->@*;
+        push $parsed_data->{code}->@*, $value->@*;
+    }
+    elsif ( $key eq 'doc' ) {
+        push $parsed_data->{doc}->@*, $value->@*;
+    }
+    elsif ( $key eq 'load' ) {
+        die "Error line $line_nb: Cannot mix code and load section\n" if $parsed_data->{code}->@*;
+        push $parsed_data->{load}->@*, $value->@*;
+    }
+    elsif ( $key eq 'commit' ) {
+        $parsed_data->{commit_msg} = join "\n", $value->@*;
+    }
+    else {
+        return 0;
+    }
+    return 1;
+}
+
+sub process_script_vars ($user_args, $data) {
+    # $var is used in eval'ed strings
+    my %var;
+
+    # find if all variables are accounted for
+    $data->{missing} = {};
+
+    # %args can be used in var section of a script. A new entry in
+    # added in %missing if the script tries to read an undefined value
+    tie my %args, 'App::Cme::Run::Var',$data->{missing}, $data->{default};
+    %args = $user_args->%*;
+
+    my $var = delete $data->{var} // [];
+    foreach my $eval_data ($var->@*) {
+        my ($line_nb, @value);
+        if (ref $eval_data) {
+            # coming from text format
+            ($line_nb, @value) = $eval_data->@*;
+            # eval'ed string comes from system file, not from user data
+            my $res = eval ("@value") ; ## no critic (ProhibitStringyEval)
+            die "Error in var specification line $line_nb: $@\n" if $@;
+        }
+        else {
+            # coming from YAML format
+            my $res = eval ($eval_data) ; ## no critic (ProhibitStringyEval)
+            die "Error in var specification: $@\n" if $@;
         }
     }
-    return {
-        doc => \@doc,
-        commit_msg => $commit_msg,
-        missing => \%missing,
-        load => \@load,
+
+    replace_vars($user_args, \%var, $data, 'doc', 'load', 'commit_msg');
+
+    $data->{values} = {$data->{default}->%*, %var, $user_args->%*};
+
+    return $data;
+}
+
+sub parse_script ($script, $content, $user_args) {
+    my $lines->@* =  split /\n/,$content;
+
+    if ($lines->[0] =~ /Format:\s*perl/i) {
+        ## no critic (ProhibitStringyEval)
+        my $data = eval($content);
+        die "Error in script $script (Perl format): $@\n" if $@;
+        foreach my $forbidden (qw/load var default/) {
+            die "Unexpected '$forbidden\ section in Perl format script $script\n" if $data->{$forbidden};
+        }
+        die "Unexpected 'code' section in Perl format script $script. Please use a sub section.\n" if $data->{code};
+        return $data;
     }
+
+    my $data;
+    if ($lines->[0] =~ /Format:\s*yaml/i) {
+        my $ypp = YAML::PP->new;
+        $data = $ypp->load_string($content);
+        foreach my $key (qw/doc code load var/) {
+            next unless defined $data->{$key};
+            next if ref $data->{$key} eq 'ARRAY';
+            $data->{$key} = [ $data->{$key} ]
+        }
+        $data->{default} //= {};
+        $data->{commit_msg} = delete $data->{commit};
+        if ($data->{default} and ref $data->{default} ne 'HASH') {
+            die "default spec must be a hash ref, not a ", ref $data->{default} // 'scalar', "\n";
+        }
+    }
+    else {
+        $data = parse_script_lines ($script, $lines);
+    }
+
+    my $processed_data = process_script_vars ($user_args, $data);
+
+    if (not $processed_data->{app}) {
+        die "Missing 'app' parameter in script $script.\n"
+    }
+
+    return $processed_data;
+}
+
+sub process_commit_message($self, $root, $values, $msg) {
+    # replace strings like "{{ config_load_path }}" in $msg
+    $msg =~ s/\{\{(.*?)\}\}/$root->grab_value($1)/e;
+
+    # replace strings like "$value" in $msg
+    $msg =~ s/\$(\w+)/$values->{$1}/eg;
+
+    return $msg;
+}
+
+sub commit ($self, $msg) {
+    system(qw/git commit -a -m/, $msg) == 0
+        or die "git commit failed: $?\n";
+
+    return;
+}
+
+# returns: script file name, script data if script is *not* Perl code
+sub get_script_data ($self, $script_name, $opt = {}) {
+    my $script_file = $self->find_script_file($script_name);
+
+    my $content = $script_file->slurp_utf8;
+
+    if ($content =~ m/^#!/ and -x $script_file) {
+        return $script_file, {};
+    }
+
+    # parse variables passed on command line
+    my %user_args = map { split '=',$_,2; } @{ $opt->{arg} };
+
+    return ($script_file, parse_script($script_file, $content, \%user_args));
+}
+
+sub run_script_as_code ($self, $script_name, $script_file) {
+    splice @ARGV, 0,2;          # remove 'run script' arguments
+    my $done = eval $script_file->slurp_utf8."\n1;\n"; ## no critic (BuiltinFunctions::ProhibitStringyEval)
+    if (ref $done eq 'HASH') {
+        warn "script $script_name returns a hash but it's processed as a plain script.",
+            " This may not be what you want\n";
+    }
+    die "Error in script $script_name: $@\n" unless $done;
+    return;
 }
 
 sub execute {
@@ -222,26 +355,18 @@ sub execute {
 
     return unless $self->check_script_arguments($opt, $script_name);
 
-    my $script = $self->find_script_file($script_name);
-
-    my $content = $script->slurp_utf8;
+    my ($script_file, $script_data) = $self->get_script_data($script_name, $opt);
 
     if ($opt->{cat}) {
-        print $content;
+        print $script_file->slurp_utf8;
         return;
     }
 
-    # parse variables passed on command line
-    my %user_args = map { split '=',$_,2; } @{ $opt->{arg} };
-
-    if ($content =~ m/^#!/ or $content =~ /^use/m) {
-        splice @ARGV, 0,2; # remove 'run script' arguments
-        my $done = eval $script->slurp_utf8."\n1;\n"; ## no critic (BuiltinFunctions::ProhibitStringyEval)
-        die "Error in script $script_name: $@\n" unless $done;
+    if (not defined $script_data->{app}) {
+        $self->run_script_as_code ($script_name, $script_file);
         return;
     }
 
-    my $script_data = parse_script($script, $content, \%user_args, $app_args);
     my $commit_msg = $script_data->{commit_msg};
 
     if ($opt->doc) {
@@ -251,11 +376,12 @@ sub execute {
     }
 
     if (my @missing = sort keys $script_data->{missing}->%*) {
-        die "Error: Missing variables '". join("', '",@missing)."' in command arguments for script $script\n"
+        die "Error: Missing variables '". join("', '",@missing)
+            ."' in command arguments for script $script_file\n"
             ."Please use option '".join(' ', map { "-arg $_=xxx"} @missing)."'\n";
     }
 
-    $self->process_args($opt, $app_args);
+    $self->process_args($opt, [ $script_data->{app}, $app_args->@* ]);
 
     # override commit message. may also trigger a commit even if none
     # is specified in script
@@ -263,32 +389,120 @@ sub execute {
         $commit_msg = $opt->{commit};
     }
 
-    # check if workspace and index are clean
-    if ($commit_msg) {
-        ## no critic(InputOutput::ProhibitBacktickOperators)
-        my $r = `git status --porcelain --untracked-files=no`;
-        die "Cannot run commit command in a non clean repo. Please commit or stash pending changes: $r\n"
-            if $r;
+    $opt->{_verbose} = 'Loader' if $opt->{verbose};
+
+    my ( $categories, $appli_info, $appli_map ) = Config::Model::Lister::available_models;
+    my $app = $script_data->{app};
+    if ($opt->{foreach} and $appli_info->{$app}{_category} ne 'application') {
+        die "Cannot use --foreach option with $app. This option can only be used with ".
+            join(' ', $categories->{application}->@*). ". Check your cme script.\n";
     }
 
-    $opt->{_verbose} = 'Loader' if $opt->{verbose};
+    # parse variables passed on command line
+
+    if ($opt->{foreach}) {
+        $self->run_foreach_loop($opt,$app_args, $script_data);
+    }
+    else {
+        my %user_args = map { split '=',$_,2; } @{ $opt->{arg} };
+        $self->run_script ($opt, $app_args, $script_data, \%user_args);
+    }
+
+    return;
+}
+
+sub run_foreach_loop($self, $opt,$app_args, $script_data ) {
+    my %user_args = map { split '=',$_,2; } @{ $opt->{arg} };
+
+    my @dirs = map { chomp ; split /\s+/; }
+        ($opt->{foreach} eq '-' ? <STDIN> : ($opt->{foreach}));
+
+    my $start = path('.')->absolute;
+
+    foreach my $d (@dirs) {
+        my $t_dir = $start->child($d);
+        if (not $t_dir->is_dir) {
+            die "Cannot run script in $d: not a directory\n";
+        }
+        say "Running script in $t_dir ...";
+        # instance is stored in Config::Model, so the name must be changed
+        $opt->{instance_name} = $d;
+        # instance is persisted in $self, so its ref must be removed
+        delete $self->{_instance};
+        chdir $t_dir->stringify;
+        $self->run_script ($opt, $app_args, $script_data, {%user_args});
+        # once we're done, remove instance from Model to avoid memory leaks
+        # TODO: use delete_instance method provided by Config::Model from version 2.156
+        delete $self->{_model}{instances}{$d};
+    }
+
+    chdir $start->stringify;
+    return;
+}
+
+sub run_script ($self, $opt, $app_args, $script_data, $user_args){
+    my $commit_msg = $script_data->{commit_msg};
+    my $stashed;
+
+    # check if workspace and index are clean
+    if ($commit_msg and not $opt->{no_commit}) {
+        ## no critic(InputOutput::ProhibitBacktickOperators)
+        my $r = `git status --porcelain --untracked-files=no`;
+        if ($?) {
+            die "git status command failed: $?\n";
+        }
+        if ($r) {
+            system(qw/git stash push --quiet --message/, "cme run auto stash") == 0
+                or die "git stash push failed: $?\n";
+            $stashed = 1;
+        };
+    }
 
     # call loads
     my ($model, $inst, $root) = $self->init_cme($opt,$app_args);
-    map { $root->load($_) } $script_data->{load}->@*;
+    foreach my $load_str ($script_data->{load}->@*) {
+        $root->load($load_str);
+    }
 
-    $self->save($inst,$opt) ;
+    if ($script_data->{code}) {
+        my $to_run = '';
+        while (my ($name, $value) = each $script_data->{values}->%*) {
+            $to_run .= "my \$$name = '$value';\n";
+        }
+        $to_run .= join("\n",$script_data->{code}->@*);
+        my $res = eval($to_run); ## no critic (ProhibitStringyEval)
+        die "Error in code specification: $@\ncode is: \n$to_run\n" if $@;
+    }
 
-    # commit if needed
-    if ($commit_msg and not $opt->{'no-commit'}) {
-        system(qw/git commit -a -m/, $commit_msg);
+    if ($script_data->{sub}) {
+        $script_data->{sub}->($root, $user_args);
+    }
+
+    if ($inst->needs_save) {
+        $self->save($inst,$opt) ;
+
+        # commit if needed
+        if ($commit_msg and not $opt->{no_commit}) {
+            my $processed_msg = $self->process_commit_message(
+                $root, $script_data->{values}, $commit_msg
+            );
+            $self->commit($processed_msg);
+        }
+    } else {
+        say "No change were applied";
+    }
+
+
+    if ($stashed) {
+        system(qw/git stash pop --quiet/) == 0
+            or die "git stash pop failed: $?\n";
     }
 
     return;
 }
 
 package App::Cme::Run::Var; ## no critic (Modules::ProhibitMultiplePackages)
-$App::Cme::Run::Var::VERSION = '1.034';
+
 require Tie::Hash;
 
 ## no critic (ClassHierarchies::ProhibitExplicitISA)
@@ -305,18 +519,6 @@ sub FETCH {
 1;
 
 __END__
-
-=pod
-
-=encoding UTF-8
-
-=head1 NAME
-
-App::Cme::Command::run - Run a cme script
-
-=head1 VERSION
-
-version 1.034
 
 =head1 SYNOPSIS
 
@@ -353,10 +555,14 @@ version 1.034
  - update-copyright
  - add-me-to-uploaders
 
+ # mass modification
+ $ cme run add-me-to-uploaders --foreach "raku-log raku-zef"
+ # similar result
+ $ echo "raku-*" | cme run add-me-to-uploaders --foreach -
+
 =head1 DESCRIPTION
 
-Run a script written with cme DSL (Design specific language) or in
-plain Perl.
+Run a script written for C<cme>
 
 A script passed by name is searched in C<~/.cme/scripts>,
 C</etc/cme/scripts> or C</usr/share/perl5/Config/Model/scripts>.
@@ -367,9 +573,37 @@ C</usr/share/perl5/Config/Model/scripts/foo>
 No search is done if the script is passed with a path
 (e.g. C<cme run ./foo>)
 
+C<cme run> accepts scripts written with different syntaxes:
+
+=over
+
+=item cme DSL
+
+For simple script, this DSL text specifies the target app, the doc,
+optional variables and a load string used by L<Config::Model::Loader> or
+Perl code.
+
+=item YAML
+
+Like text above, but using Yaml syntax.
+
+=item Perl data structure
+
+Writing Perl code in a text file or in a YAML field can be painful as
+Perl syntax is not highlighted. With a Perl data structure, a cme
+script specifies the target app, the doc, optional variables, and a
+perl subroutine (see below).
+
+=item plain Perl script
+
 C<cme run> can also run plain Perl script. This is syntactic sugar to
 avoid polluting global namespace, i.e. there's no need to store a
 script using L<cme function|Config::Model/cme> in C</usr/local/bin/>.
+Note that the script must begin with the usual shebang line (C<#!>)
+and be executable.
+
+=back
+
 
 When run, this script:
 
@@ -381,7 +615,7 @@ opens the configuration file of C<app>
 
 =item *
 
-applies the modifications specified with C<load> instructions
+applies the modifications specified with C<load> instructions or the Perl code.
 
 =item *
 
@@ -395,7 +629,7 @@ commits the result if C<commit> is specified (either in script or on command lin
 
 See L<App::Cme::Command::run> for details.
 
-=head1 Syntax
+=head1 Syntax of text format
 
 The script accepts instructions in the form:
 
@@ -419,6 +653,14 @@ Specify the target application. Must be one of the application listed
 by C<cme list> command. Mandatory. Only one C<app> instruction is
 allowed.
 
+=item default
+
+Specify default values that can be used in C<load> or C<var> sections.
+
+For instance:
+
+ default: name=foobar
+
 =item var
 
 Use Perl code to specify variables usable in this script. The Perl
@@ -431,8 +673,8 @@ option. Reading a value from C<%args> which is not set by user
 triggers a missing option error. Use C<exists> if you need to test if
 a argument was set by user:
 
-    var: $var{foo} = exists $var{bar} ? $var{bar} : 'default' # good
-    var: $var{foo} = $var{bar} || 'default' # triggers a "missing arg" error
+    var: $var{foo} = exists $args{bar} ? $args{bar} : 'default' # good
+    var: $var{foo} = $args{bar} || 'default' # triggers a "missing arg" error
 
 =item load
 
@@ -442,11 +684,42 @@ L<Config::Model::Loader>. This string can contain variable
 foo=bar>) or by a variable set in var: line (e.g. C<$var{foo}> as set
 above) or by an environment variable (e.g. C<$ENV{foo}>)
 
+=item code
+
+Specify Perl code to run. See L</code section> for details.
+
 =item commit
 
 Specify that the change must be committed with the passed commit
-message. When this option is used, C<cme> raises an error if used on a
-non-clean workspace. This option works only with L<git>.
+message. When this option is used, C<cme> stashes and restores all
+modifications if used on a non-clean workspace. This option works only
+with L<git>.
+
+Strings like C<{{ load path }}> are substituted with a value extracted
+from configuration tree with the specified load path. See
+L<Config::Model::Loader> for a valid load path.
+
+For example, this specification:
+
+    load: source Standards-Version="4.7.0"
+    commit: declare compliance with policy {{source Standards-Version}}
+
+yields this commit message:
+
+    declare compliance with policy 4.7.0
+
+String like C<$some_value> are with substituted with a value coming
+from an environment variable, a script argument or a value defined as
+a C<var> line.
+
+For example, this specification:
+
+  var: $var{close_str} = defined $args{closes} ? " (Closes: #$args{closes})" : ""
+  commit: set $DEBEMAIL as Maintainer$close_str
+
+invoked with argument C<-arg closes=1234>, yields this commit message:
+
+  set dod@example.com as Maintainer (Closes: #1234)
 
 =back
 
@@ -465,6 +738,98 @@ transforms the instruction:
 in
 
   load: ! a=foo b=bar
+
+=head2 Example
+
+Here's an example from L<libconfig-model-dpkg-perl scripts|https://salsa.debian.org/perl-team/modules/packages/libconfig-model-dpkg-perl/-/blob/master/lib/Config/Model/scripts/add-me-to-uploaders>:
+
+  doc: add myself to Uploaders
+  app: dpkg-control
+  load: source Uploaders:.insort("$DEBFULLNAME <$DEBEMAIL>")
+  commit: add $DEBEMAIL to Uploaders
+
+You can find other examples on L<script directory of libconfig-model-dpkg-perl|https://salsa.debian.org/perl-team/modules/packages/libconfig-model-dpkg-perl/-/blob/master/lib/Config/Model/scripts/>
+
+=head2 Code section
+
+The code section can contain variable (e.g. C<$foo>) which are replaced by
+command argument (e.g. C<-arg foo=bar>) or by a variable set in var:
+line (e.g. C<$var{foo}> as set above).
+
+When evaluated the following variables are also set:
+
+=over
+
+=item $root
+
+Root node of the configuration (See L<Config::Model::Node>)
+
+=item $inst
+
+Configuration instance (See L<Config::Model::Instance>)
+
+=item $commit_msg
+
+Message used to commit the modification.
+
+=back
+
+Since the code is run in an C<eval>, other variables are available
+(like C<$self>) to shoot yourself in the foot.
+
+For example:
+
+ app:  popcon
+ ---code
+ $root->fetch_element('MY_HOSTID')->store($to_store);
+ ---
+
+=head1 Syntax of YAML format
+
+This format is intented for people not wanting to user the text format
+above. It supports the same parameters as the text format.
+
+When using "!" and "$" characters in a string, using YAML block scalar
+is probably easier.
+
+For instance:
+
+ # Format: YAML
+ ---
+ app: popcon
+ default:
+   defname: foobar
+ var: |-
+   $var{name} = $args{defname}
+ load: |-
+   ! MY_HOSTID=$name
+
+=head1 Syntax of Perl format
+
+This format is intended for more complex script where using C<load>
+instructions is not enough.
+
+This script must then begin with C<# Format: perl> and specifies a
+hash. For instance:
+
+ # Format: perl
+ {
+      app => 'popcon', # mandatory
+      doc => "Use --arg to_store=a_value to store a_value in MY_HOSTID',
+      commit => "control: update Vcs-Browser and Vcs-Git"
+      sub => sub ($root, $arg) { $root->fetch_element('MY_HOSTID')->store($arg->{to_store}); }
+ }
+
+C<$root> is the root if the configuration tree (See L<Config::Model::Node>).
+C<$arg> is a hash containing the arguments passed to C<cme run> with C<-arg> options.
+
+The C<sub> parameter value must be a sub ref. Its parameters are
+C<$root> (a L<Config::Model::Node> object containing the root of the
+configuration tree) and C<$arg> (a hash ref containing the keys and
+values passed to C<cme run> with C<--arg> options).
+
+Note that this format does not support C<var>, C<default> and C<load>
+parameters as you can easily achieve the same result with Perl code.
 
 =head1 Options
 
@@ -493,6 +858,21 @@ committed with the passed commit message.
 =head2 no-commit
 
 Don't commit to git (even if the above option is set)
+
+=head2 foreach
+
+Apply the script in specific directories. This option is available
+only when dealing with application (See the list returned by C<cme list>).
+
+For instance, if your directory contains several Debian packages and
+you want to apply the same modification to all packages, you can run
+something like:
+
+   cme run add-me-to-uploaders --foreach "raku-log raku-zef"
+
+or use C<STDIN> to send the package directories:
+
+   ls "raku-*" | cme run add-me-to-uploaders --foreach -
 
 =head2 verbose
 
@@ -572,20 +952,16 @@ This script can also be written using multi line instructions:
  load: ! source Vcs-Browser="$browser" Vcs-Git="$url"
  commit: control: update Vcs-Browser and Vcs-Git
 
+=head2 personal scripts
+
+You may create your own scripts in C<~/.cme/scripts>. Here's an example:
+
+ $ cat ~/.cme/scripts/set-any-arch
+ app: dpkg-control
+ load: binary:~".*" Architecture=any
+
 =head1 SEE ALSO
 
 L<cme>
-
-=head1 AUTHOR
-
-Dominique Dumont
-
-=head1 COPYRIGHT AND LICENSE
-
-This software is Copyright (c) 2014-2021 by Dominique Dumont.
-
-This is free software, licensed under:
-
-  The GNU Lesser General Public License, Version 2.1, February 1999
 
 =cut

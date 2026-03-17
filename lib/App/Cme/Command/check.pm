@@ -1,16 +1,7 @@
-#
-# This file is part of App-Cme
-#
-# This software is Copyright (c) 2014-2021 by Dominique Dumont.
-#
-# This is free software, licensed under:
-#
-#   The GNU Lesser General Public License, Version 2.1, February 1999
-#
 # ABSTRACT: Check the configuration of an application
 
 package App::Cme::Command::check ;
-$App::Cme::Command::check::VERSION = '1.034';
+
 use strict;
 use warnings;
 use 5.10.1;
@@ -80,18 +71,6 @@ sub execute {
 
 __END__
 
-=pod
-
-=encoding UTF-8
-
-=head1 NAME
-
-App::Cme::Command::check - Check the configuration of an application
-
-=head1 VERSION
-
-version 1.034
-
 =head1 SYNOPSIS
 
  # standard usage
@@ -99,6 +78,7 @@ version 1.034
 
  # read data from arbitrary file (with Config::Model::Dpkg)
  cme check dpkg-copyright path/to/file
+
 
 =head1 DESCRIPTION
 
@@ -143,17 +123,5 @@ If C<-strict> option is set, cme exits 1 when warnings are found.
 =head1 SEE ALSO
 
 L<cme>
-
-=head1 AUTHOR
-
-Dominique Dumont
-
-=head1 COPYRIGHT AND LICENSE
-
-This software is Copyright (c) 2014-2021 by Dominique Dumont.
-
-This is free software, licensed under:
-
-  The GNU Lesser General Public License, Version 2.1, February 1999
 
 =cut

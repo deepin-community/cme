@@ -1,24 +1,38 @@
 Source: cme
+Standards-Version: 4.7.3
 Maintainer: Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>
-Uploaders: Dominique Dumont <dod@debian.org>
+Uploaders:
+ Dominique Dumont <dod@debian.org>,
 Section: perl
 Testsuite: autopkgtest-pkg-perl
-Priority: optional
-Build-Depends: debhelper-compat (= 13),
-               libmodule-build-perl,
-               perl
-Build-Depends-Indep: dh-sequence-bash-completion,
-                     libapp-cmd-perl <!nocheck>,
-                     libconfig-model-perl <!nocheck>,
-                     libjson-perl <!nocheck>,
-                     liblog-log4perl-perl <!nocheck>,
-                     libpath-tiny-perl <!nocheck>,
-                     libpod-pom-perl <!nocheck>,
-                     libtest-command-perl <!nocheck>,
-                     libtest-file-contents-perl <!nocheck>,
-                     libtest-pod-perl <!nocheck>,
-                     libyaml-perl <!nocheck>
-Standards-Version: 4.6.0
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-dist-zilla,
+ dh-sequence-dist-zilla,
+ libdist-zilla-plugin-podweaver-perl,
+ libdist-zilla-plugin-prepender-perl,
+ libdist-zilla-plugin-run-perl,
+ libdist-zilla-plugin-signature-perl,
+ libdist-zilla-plugins-cjm-perl,
+ libmodule-build-perl,
+ libpod-elemental-transformer-list-perl,
+ libpod-weaver-section-support-perl,
+ libsoftware-license-perl,
+ perl,
+Build-Depends-Indep:
+ dh-sequence-bash-completion,
+ libapp-cmd-perl <!nocheck>,
+ libconfig-model-backend-yaml-perl <!nocheck>,
+ libconfig-model-perl <!nocheck>,
+ libconfig-model-tester-perl <!nocheck>,
+ libjson-perl <!nocheck>,
+ liblog-log4perl-perl <!nocheck>,
+ libpath-tiny-perl <!nocheck>,
+ libpod-pom-perl <!nocheck>,
+ libtest-command-perl <!nocheck>,
+ libtest-file-contents-perl <!nocheck>,
+ libtest-pod-perl <!nocheck>,
+ libyaml-pp-perl <!nocheck>,
 Vcs-Browser: https://salsa.debian.org/perl-team/modules/packages/cme
 Vcs-Git: https://salsa.debian.org/perl-team/modules/packages/cme.git
 Homepage: https://metacpan.org/release/App-Cme
@@ -26,24 +40,28 @@ Rules-Requires-Root: no
 
 Package: cme
 Architecture: all
-Depends: ${misc:Depends},
-         ${perl:Depends},
-         libapp-cmd-perl,
-         libconfig-model-perl,
-         libjson-perl,
-         liblog-log4perl-perl,
-         libpath-tiny-perl,
-         libpod-pom-perl,
-         libyaml-perl
-Recommends: libconfig-model-approx-perl,
-            libconfig-model-dpkg-perl,
-            libconfig-model-lcdproc-perl,
-            libconfig-model-openssh-perl,
-            libconfig-model-systemd-perl,
-            libconfig-model-tkui-perl
-Suggests: libconfig-model-cursesui-perl,
-          libconfig-model-itself-perl
-Provides: dh-sequence-cme-upgrade
+Depends:
+ ${misc:Depends},
+ ${perl:Depends},
+ libapp-cmd-perl,
+ libconfig-model-perl,
+ libjson-perl,
+ liblog-log4perl-perl,
+ libpath-tiny-perl,
+ libpod-pom-perl,
+ libyaml-pp-perl,
+Recommends:
+ libconfig-model-approx-perl,
+ libconfig-model-dpkg-perl,
+ libconfig-model-lcdproc-perl,
+ libconfig-model-openssh-perl,
+ libconfig-model-systemd-perl,
+ libconfig-model-tkui-perl,
+Suggests:
+ libconfig-model-cursesui-perl,
+ libconfig-model-itself-perl,
+Provides:
+ dh-sequence-cme-upgrade,
 Description: Check or edit configuration data with Config::Model
  cme provides a command to check or edit configuration data with
  Config::Model.

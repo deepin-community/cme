@@ -1,16 +1,7 @@
-#
-# This file is part of App-Cme
-#
-# This software is Copyright (c) 2014-2021 by Dominique Dumont.
-#
-# This is free software, licensed under:
-#
-#   The GNU Lesser General Public License, Version 2.1, February 1999
-#
 # ABSTRACT: Edit the configuration of an application
 
 package App::Cme::Command::edit ;
-$App::Cme::Command::edit::VERSION = '1.034';
+
 use strict;
 use warnings;
 use 5.10.1;
@@ -114,18 +105,6 @@ sub execute {
 
 __END__
 
-=pod
-
-=encoding UTF-8
-
-=head1 NAME
-
-App::Cme::Command::edit - Edit the configuration of an application
-
-=head1 VERSION
-
-version 1.034
-
 =head1 SYNOPSIS
 
   # edit dpkg config with GUI (requires Config::Model::Dpkg)
@@ -139,9 +118,6 @@ version 1.034
 
   # edit ~/.ssh/config (requires Config::Model::OpenSsh)
   cme edit ssh
-
-  # edit a file (file name specification is mandatory here)
-  cme edit multistrap my.conf
 
 =head1 DESCRIPTION
 
@@ -177,24 +153,13 @@ See L<cme/"Global Options">.
 
 =item -open-item
 
-Open a specific item of the configuration when opening the editor
+Open a specific item of the configuration when opening the editor. Trying to open
+a non-existing item triggers an error.
 
 =back
 
 =head1 SEE ALSO
 
 L<cme>
-
-=head1 AUTHOR
-
-Dominique Dumont
-
-=head1 COPYRIGHT AND LICENSE
-
-This software is Copyright (c) 2014-2021 by Dominique Dumont.
-
-This is free software, licensed under:
-
-  The GNU Lesser General Public License, Version 2.1, February 1999
 
 =cut
