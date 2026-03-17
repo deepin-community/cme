@@ -7,6 +7,6 @@ Applied-Upstream: NA
 @@ -1,4 +1,4 @@
 -#!/usr/bin/env perl
 +#!/usr/bin/perl
- #
- # This file is part of App-Cme
- #
+ # PODNAME: cme
+ # ABSTRACT: Check or edit configuration data with Config::Model
+ 

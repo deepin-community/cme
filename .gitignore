@@ -1,1 +1,4 @@
-.pc/
+App-Cme-*
+.build
+wr_root
+*~

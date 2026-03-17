@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+# PODNAME: dh_cme_upgrade - add cme based configuration merge
 
 #    Copyright (c) 2009.2012-2013 Dominique Dumont.
 #
@@ -149,7 +150,7 @@ sub autotemplate {
 
     open(IN, $infile) or die "$infile: $!";
     open(OUT, ">$outfile") or die "$outfile: $!";
-    while (<IN>) { $sub->(); print OUT }    
+    while (<IN>) { $sub->(); print OUT }
     close(OUT) or die "$outfile: $!";
     close(IN) or die "$infile: $!";
 }
@@ -158,10 +159,6 @@ sub autotemplate {
 __END__
 
 =encoding UTF-8
-
-=head1 NAME
-
-dh_cme_upgrade - add cme based configuration merge
 
 =head1 SYNOPSIS
 
@@ -231,7 +228,7 @@ Here are the possible keys:
 
 =item cme-app-name
 
-Specifies the application or model name (à la C<Config::Model>) that will be used to
+Specifies the application or model name (Ã  la C<Config::Model>) that will be used to
 perform the upgrade. (mandatory)
 
 =item cme-model-package
